@@ -1,2 +1,801 @@
-# Density_Estimation
-In statistics, probability density estimation or simply density estimation is the construction of an estimate, based on observed data, of an unobservable underlying probability density function.
+---
+title: "Density Estimation"
+subtitle: "Histograms, Asymptotics, Crossvalidation"
+author: "Kaustav Paul 
+      <br>
+Shreya Chatterjee 
+      <br>
+      Ananyo Dey"
+institute: Indian Statistical Institute, Delhi Center
+Date: "2024.04.05"
+format: 
+  revealjs: 
+    incremental: true
+    code-fold: true
+    transition: slide
+    theme: night
+    fontsize: 150%
+execute: 
+  echo: true
+editor: visual
+---
+
+## Introduction {.scrollable}
+
+-   *Probability density function* is one of the vital and fundamental concept in statistics. Consider any random quantity $X$ that has a unique probability density function $f$. Guessing or knowing the $f$ is one of the important aspects for the statistician to infer about the population. It allows probabilities associated the $X$ to be found from the relation $$P(a < X < b) = \int_{a}^{b} f(x) dx \hspace{2mm} \text{for all} \hspace{2mm} a < b $$
+
+-   One way of guessing about the $f$ is via parametric method. In this method we assume $f$ is a member of known parametric family of distribution and based on the observed data we are trying to estimate the parameters of the assuming parametric form.
+
+-   Here we are focusing on the non-parametric approach with less rigid assumptions will be made about the distribution of the observed data.
+
+-   Density estimation methods as we know them today began during the 1950s. However, in spirit it has been studied even via the Greeks via histograms.
+
+# Estimators
+
+-   We have to estimate density function $f$. But there does not exist any non-negative unbiased estimator of $f$. So all the estimators should be biased.
+
+-   The very intuitive idea for estimating $f$ will be using histogram. For the presentation and exploration of data, histograms are of course an extremely useful class of density estimates, particularly in the *univariate case.*
+
+-   Suppose $X_1, X_2, X_3, \cdots, X_n$ are iid $f(x)$ where $f(x)$ is completely unknown.
+
+-   \textbf{Histogram With Fixed width :} Fix a point $x_0$ and a bin width $h$ . Consider histogram on the intervals $[x_0 + mh, x_0 + (m+1)h)$ where $m = 0, \pm 1, \pm 2, \pm 3, \cdots$ . Estimators of $f(x)$ = $\frac{1}{n h} \text{No. of} \hspace{1mm} X\text{'s in the same bin as} \hspace{1mm} x$
+
+# Estimators
+
+-   To construct that histogram, we have to choose both an origin and a bin width. Note, choosing the bin width primarily inherent the amount of smoothing.
+
+-   From this estimators we can observe that if $n$ increases no. of $X$'s in the same bin as $x$ increases.
+
+-   Let see some examples using simulation how the sample origin, bin width and sample size effects.
+
+# Effects on Histogram
+
+```{r, echo=FALSE , warning=FALSE}
+
+rm(list = ls())
+
+library(ggplot2)
+library(gridExtra)
+library(cowplot)
+library(ggpubr)
+
+hist1 <- function(n, x0, h, rpdf, dens, alpha)      #if the simulating distribution has single argument
+{
+  set.seed(seed = 1)
+  x <- rpdf(n, alpha)
+  s<- seq(min(x)-h,max(x)+h,0.001)
+  ds <- dens(s,alpha)
+  fig <- ggplot() + geom_histogram(data = data.frame(x), aes(x = x, y = after_stat(density)),center=x0-h/2, binwidth=h, color="black", fill="white")  + 
+    geom_line(data = data.frame(s, ds), aes(x = s, y = ds), color="red")
+  return (fig)
+}
+
+hist2 <- function(n, x0, h, rpdf, dens, alpha, beta)      #if the simulating distribution has two arguments
+{
+  set.seed(seed = 1)
+  x <- rpdf(n, alpha, beta)
+  s <- seq(min(x)-h,max(x)+h,0.001)
+  ds <- dens(s,alpha,beta)
+  
+  fig <- ggplot() + geom_histogram(data = data.frame(x), aes(x = x, y = after_stat(density)),center=x0-h/2, binwidth=h, color="black", fill="white")  + 
+    geom_line(data = data.frame(s, ds), aes(x = s, y = ds), color="red")
+  return (fig)
+}
+
+
+hist_comp_origin1 <- function(n, origin, h, rpdf, dens, alpha)
+{
+  plots <- list()
+  for(i in (1:length(origin)))
+  {
+    plots[[i]] <- hist1(n, origin[i], h, rpdf, dens, alpha)+labs(title = paste("x_0 = ", origin[i]))
+  }
+  plots
+}
+
+hist_comp_origin2 <- function(n, origin, h, rpdf, dens, alpha, beta)
+{
+  plots <- list()
+  for(i in (1:length(origin)))
+  {
+    plots[[i]] <- hist2(n, origin[i], h, rpdf, dens, alpha, beta)+labs(title = paste("x_0 = ", origin[i]))
+  }
+  plots
+}
+
+hist_mix_norms <- function(n,x0,h,m1,s1,m2,s2,p){
+  set.seed(seed=1)
+  y <- rnorm(n*p,m1,s1)
+  z <- rnorm(n*(1-p),m2,s2)
+  x <- c(y,z[z!=y])
+  s<- seq(min(x)-0.5,max(x)+0.5,0.1)
+  ds <- p*dnorm(s,m1,s1)+(1-p)*dnorm(s,m2,s2)
+  ggplot() + geom_histogram(data = data.frame(x), aes(x = x, y = after_stat(density)),center=x0-h/2, binwidth=h, color="black", fill="grey")  + 
+    geom_line(data = data.frame(s, ds), aes(x = s, y = ds))
+}
+
+hist_comp_origin3 <- function(n, origin, h, m1,s1,m2,s2,p)
+{
+  plots <- list()
+  for(i in (1:length(origin)))
+  {
+    plots[[i]] <- hist_mix_norms(n, origin[i], h, m1,s1,m2,s2,p)+labs(title = paste("x0 = ", origin[i]))
+  }
+  plots
+}
+
+Allplots <- c(hist_comp_origin2(50, c(-0.3,0,0.3,0.6), 0.5, rnorm, dnorm, 0, 1),
+              hist_comp_origin1(50, c(-0.2,0,0.6,0.8), 0.5, rexp, dexp, 1),
+              hist_comp_origin2(50, c(-0.256,0.355,0.62,0.832), 0.1, rbeta, dbeta, 5, 2),
+              hist_comp_origin1(50,c(5,5.3,5.5,5.7),1, rgeom, dgeom,0.3),
+              hist_comp_origin3(50,c(-0.3,0,0.3,0.6),1,-5,1,4,3,0.3))
+
+col_titles <- c(paste("N(0,1) with n=50, h=0.5"), paste("exp(1) with n = 50, h = 0.5"), paste("Beta(5,2) with n = 50, h = 0.1"),paste("Geometric(0.3) with n = 50, h = 1"),paste("0.3*N(-5,1)+0.7*N(4,3), n=500, x_0 = 0"))
+
+```
+
+## Effect of Origin ($x_0$) on Histogram
+
+```{r,fig.dim=c(15,7), warning=FALSE}
+# Arrange the plots in a 4x4 grid
+grid.arrange(
+  grobs = lapply(c(1, 5, 9, 13, 17), function(i) {
+    arrangeGrob(grobs = Allplots[i:(i + 3)],top = col_titles[(i-1)/4 + 1], ncol = 1)
+  }),
+  ncol = 5, top= text_grob("Effect of Origin")
+)
+```
+
+------------------------------------------------------------------------
+
+### Effect of Fixed bin width (h) on Histogram
+
+```{r, echo = FALSE, warning=FALSE}
+
+hist_comp_width1 <- function(n, x0, width, rpdf, dens, alpha)
+{
+  plots <- list()
+  for(i in (1:length(width)))
+  {
+    plots[[i]] <- hist1(n, x0, width[i], rpdf, dens, alpha)+labs(title = paste("h = ", width[i]))
+  }
+  plots
+}
+
+hist_comp_width2 <- function(n, x0, width, rpdf, dens, alpha, beta)
+{
+  plots <- list()
+  for(i in (1:length(width)))
+  {
+    plots[[i]] <- hist2(n, x0, width[i], rpdf, dens, alpha, beta)+labs(title = paste("h = ", width[i]))
+  }
+  plots
+}
+
+hist_comp_width3 <- function(n, x0, width, m1,s1,m2,s2,p)
+{
+  plots <- list()
+  for(i in (1:length(width)))
+  {
+    plots[[i]] <- hist_mix_norms(n, x0, width[i], m1,s1,m2,s2,p)+labs(title = paste("h = ", width[i]))
+  }
+  plots
+}
+
+
+Allplots <- c(hist_comp_width2(50, 0, c(0.3,0.5,0.7,1), rnorm, dnorm, 0, 1),
+              hist_comp_width1(50, 0, c(0.3,0.5,0.7,1), rexp, dexp, 1),
+              hist_comp_width2(50, 0, c(0.2,0.1,0.05,0.03), rbeta, dbeta, 5, 2),
+              hist_comp_width1(50,5.5,c(0.7,1,2,3), rgeom, dgeom,0.3),
+              hist_comp_width3(50,0,c(2,1,0.5,0.3),-5,1,4,3,0.3))
+
+col_titles <- c(paste("N(0,1) with n = 50, x_0 = 0"), 
+                paste("exp(1) with n = 50, x_0 = 0"), 
+                paste("Beta(5,2) with n=50, x_0 = 0"),
+                paste("Geometric(0.3) with n = 50, x_0 = 5.5"),
+                paste("0.3*N(-5,1)+0.7*N(4,3) n=50, x_0 = 0"))
+
+
+```
+
+```{r,fig.dim=c(15,7)}
+# Arrange the plots in a 4x4 grid
+grid.arrange(
+  grobs = lapply(c(1, 5, 9, 13, 17), function(i) {
+    arrangeGrob(grobs = Allplots[i:(i + 3)],top = col_titles[(i-1)/4 + 1], ncol = 1)
+  }),
+  ncol = 5, top= text_grob("Effect of fixed binwidth")
+)
+```
+
+------------------------------------------------------------------------
+
+### Effect of Sample size (n) on Histogram
+
+```{r, echo= FALSE, warning=FALSE}
+
+hist_comp_size1 <- function(samp, x0, h, rpdf, dens, alpha)
+{
+  plots <- list()
+  for(i in (1:length(samp)))
+  {
+    plots[[i]] <- hist1(samp[i], x0, h, rpdf, dens, alpha)+labs(title = paste("n = ", samp[i]))
+  }
+  plots
+}
+
+hist_comp_size2 <- function(samp, x0, h, rpdf, dens, alpha, beta)
+{
+  plots <- list()
+  for(i in (1:length(samp)))
+  {
+    plots[[i]] <- hist2(samp[i], x0, h, rpdf, dens, alpha, beta)+labs(title = paste("n = ", samp[i]))
+  }
+  plots
+}
+
+
+hist_comp_size3 <- function(samp, x0, h, m1,s1,m2,s2,p)
+{
+  plots <- list()
+  for(i in (1:length(samp)))
+  {
+    plots[[i]] <- hist_mix_norms(samp[i], x0, h, m1,s1,m2,s2,p)+labs(title = paste("n = ", samp[i]))
+  }
+  plots
+}
+
+
+Allplots <- c(hist_comp_size2(c(50,100,500,1000), 0, 0.5, rnorm, dnorm, 0, 1),
+              hist_comp_size1(c(50,100,500,1000), 0, 0.2, rexp, dexp, 1),
+              hist_comp_size2(c(50,100,500,1000), 0, 0.06, rbeta, dbeta, 5, 2),
+              hist_comp_size1(c(100,200,500,1000), 5.5 ,1, rgeom, dgeom,0.3),
+              hist_comp_size3(c(50,100,500,1000),0,0.5,-5,1,4,3,0.3))
+
+col_titles <- c(paste("N(0,1) with x_0 = 0, h = 0.5"), 
+                paste("exp(1) with x_0 = 0, h = 0.2"), 
+                paste("Beta(5,2) with x_0 = 0, h = 0.06"),
+                paste("Geometric(0.3) with x_0 = 5.5, h = 1"),
+                paste("0.3*N(-5,1)+0.7*N(4,3), x_0=0, h=0.5"))
+
+```
+
+```{r,fig.dim=c(15,7)}
+# Arrange the plots in a 4x4 grid
+grid.arrange(
+  grobs = lapply(c(1, 5, 9, 13,17), function(i) {
+    arrangeGrob(grobs = Allplots[i:(i + 3)],top = col_titles[(i-1)/4 + 1], ncol = 1)
+  }),
+  ncol = 5
+)
+```
+
+# Estimators
+
+-   Histogram can be generalized by allowing bandwidths to vary. So here we consider the varying bandwidth. This varying bindwidth could be decided priori or be data depended. We can estimate density by: $$\hat{f_2(x)} = \frac{1}{n} \frac{\text{No. of X's in the same bin as x}}{\text{width of the bin}}$$
+
+-   Lets see how it goes via simulation
+
+# Effects on Histograms
+
+```{r, echo=FALSE, warning=FALSE}
+
+hist4 <- function(n,h, rpdf, dens, alpha)      #if the simulating distribution has single argument
+{
+  set.seed(seed = 1)
+  x <- rpdf(n, alpha)
+  s<- seq(min(h),max(h),0.001)
+  ds <- dens(s,alpha)
+  fig <- ggplot() + geom_histogram(data = data.frame(x), aes(x = x, y = after_stat(density)),breaks=h, color="black", fill="grey")  + 
+    geom_line(data = data.frame(s, ds), aes(x = s, y = ds), color="red")
+  return (fig)
+}
+
+hist5 <- function(n, h, rpdf, dens, alpha, beta)      #if the simulating distribution has two arguments
+{
+  set.seed(seed = 1)
+  x <- rpdf(n, alpha, beta)
+  s <- seq(min(h),max(h),0.001)
+  ds <- dens(s,alpha,beta)
+  
+  fig <- ggplot() + geom_histogram(data = data.frame(x), aes(x = x, y = after_stat(density)),breaks=h, color="black", fill="grey")  + 
+    geom_line(data = data.frame(s, ds), aes(x = s, y = ds), color="red")
+  return (fig)
+}
+
+hist_mix6 <- function(n,h,m1,s1,m2,s2,p){
+  set.seed(seed=1)
+  y <- rnorm(n*p,m1,s1)
+  z <- rnorm(n*(1-p),m2,s2)
+  x <- c(y,z[z!=y])
+  s<- seq(min(h),max(h),0.1)
+  ds <- p*dnorm(s,m1,s1)+(1-p)*dnorm(s,m2,s2)
+  ggplot() + geom_histogram(data = data.frame(x), aes(x = x, y = after_stat(density)),breaks=h, binwidth=h, color="black", fill="grey")  + 
+    geom_line(data = data.frame(s, ds), aes(x = s, y = ds),color="red")
+}
+
+#For varying width (binwidth are unequal)
+hist_comp_width4 <- function(n, width, rpdf, dens, alpha)
+{
+  plots <- list()
+  for(i in (1:length(width)))
+  {
+    plots[[i]] <- hist4(n, width[[i]], rpdf, dens, alpha)+labs(title = paste(c("h = ", round(width[[i]],2)), collapse=",",sep=","))
+  }
+  plots
+}
+
+
+hist_comp_width5 <- function(n, width, rpdf, dens, alpha, beta)
+{
+  plots <- list()
+  for(i in (1:length(width)))
+  {
+    plots[[i]] <- hist5(n, width[[i]], rpdf, dens, alpha, beta)+labs(title = paste(c("h = ", round(width[[i]],2)), collapse=",",sep=","))
+  }
+  plots
+}
+
+hist_comp_width6 <- function(n, width, m1,s1,m2,s2,p)
+{
+  plots <- list()
+  for(i in (1:length(width)))
+  {
+    plots[[i]] <- hist_mix6(n, width[[i]], m1,s1,m2,s2,p)+labs(title = paste(c("h = ", round(width[[i]],2)), collapse=" ,",sep=","))
+  }
+  plots
+}
+
+
+
+
+v1<-c()
+for(i in 3:8){
+  v1 <- sort(c(v1, 5/sqrt(prod(3:i))))}
+v1<- sort(c(v1,-v1,0))
+breaks1 <- list(v1,c(-3,-1.5,-0.5,0,0.5,1.5,3),c(-3,-1.5,-0.5,v1[c(7:13)]),v1[-c(1:2,12:13)]*8)
+v2<-c(0)
+for(i in 1:7){
+  v2 <- sort(c(v2, 4/sqrt(prod(1:i))))}
+breaks2 <- list(v2,v2*2,v2[-c(7:8)]*3,v2[-c(7:8)]*4)
+v3<- c(0.05,0.15,0.35,0.5,0.75,1.05,1.4,1.8)
+breaks3 <- list(v3,v3*1.3,v3*1.2,v3*0.75)
+v4<- c(0.5,1.5,3,5,7.5,10.5)
+breaks4 <- list(v4,v4*2,v4*0.5,v4*0.75)
+v5<-c()
+for(i in 3:7){
+  v5 <- sort(c(v5, 1/sqrt(prod(3:i))))}
+v5<- sort(c(v5,-v5,0))
+breaks5 <- list(c(30*v5),c(20*v5),c(-5+12*v5, 4+9*v5),c(-5+7*v5, 4+3*v5))
+
+
+Allplots <- c(hist_comp_width5(50, breaks1, rnorm, dnorm, 0, 1),
+              hist_comp_width4(50, breaks2, rexp, dexp, 1),
+              hist_comp_width5(50, breaks3, rbeta, dbeta, 5, 2),
+              hist_comp_width4(100,breaks4, rgeom, dgeom,0.3),
+              hist_comp_width6(100,breaks5,-5,1,4,3,0.3))
+
+col_titles <- c(paste("N(0,1) with n=50, x0=0"), 
+                paste("exp(1) with n=50,x_0 = 0"), 
+                paste("Beta(5,2) with n=50, x0=0"),
+                paste("Geometric(0.3) with n = 100, x_0 = 5.5"),
+                paste("0.3*N(-5,1)+0.7*N(4,3) n=100 x_0=0"))
+
+```
+
+------------------------------------------------------------------------
+
+### Effects of varying width on Histogram
+
+```{r, fig.dim=c(15,7)}
+# Arrange the plots in a 4x5 grid
+grid.arrange(
+  grobs = lapply(c(1, 5, 9, 13, 17), function(i) {
+    arrangeGrob(grobs = Allplots[i:(i + 3)],top = col_titles[(i-1)/4 + 1], ncol = 1)
+  }),
+  ncol = 5
+)
+```
+
+------------------------------------------------------------------------
+
+### Comments
+
+-   For the origin shifting guessing wrong origin leads to wrong interpretation about the distribution.
+
+-   For the bandwidth, as it is decreasing the amount of precision is increasing.
+
+-   As the sample size increases the histogram almost coincides with the *TRUE* density function.
+
+-   For the varying bandwidth with, as we are going far from the mode value we are taking less bandwidth and that works well and gives us a good fit.
+
+-   If you have a large sample size then the Histogram has nice precision.
+
+# Kernel Density Estimation & its Asymptotics
+
+## Background Theory
+
+Kernel type Estimator: Consider the class of estimators of the form, $$f_n(x) = \frac{1}{nh_n} \sum_{i=1}^n k(\frac{x-X_i}{h_n})$$ where $h_n \rightarrow 0$ and $n \rightarrow \infty$ and $K$ is a suitable density function, i.e., $A_1:$ sup $\{k(x) : x \in \mathbb{R}\} \leq M$, $|x|k(x) \rightarrow 0$ as $|x| \rightarrow \infty$ and $A_2:$$k(x) = k(-x) \hspace{2mm} \forall x$ $\int_{-\infty}^{\infty} x^2 k(x) dx < \infty$
+
+Now applying the large sample theory, Under some regularity condition, $$\frac{f_n(x) - \mathbb{E}(f_n(x))}{\sqrt{Var(f_n(x))}} \xrightarrow[]{\mathcal{D}} N(0,1)$$ as $n \rightarrow \infty$ Note: $\mathbb{E}(f_n(x)) = \frac{1}{h_n} \int_{-\infty}^{\infty} k(\frac{x-y}{h_n}) f(y) dy$ and var$(f_n(x)) \approx \frac{1}{h_n} f(x) \int_{-\infty}^{\infty} k^2(z) dz$
+
+## Background Theory
+
+Moreover if we assume that - $K(x)$ is a symmetric bounded density function & - $\int_{-\infty}^{\infty} y^2 K(y) d(y) = 1$
+
+then we can approximate the asymptotic mean and variance of $f_n(x)$ as follows;
+
+\begin{align}
+  \mathbb{E}[f_ n(x)] &\approx f(x) + \frac{1}{2}f^{(2)}(x)h^2_n \\
+  Var[f_n(x)] &\approx \frac{1}{nh_n} f(x) \int_{-\infty}^{\infty} K^2(y) dy 
+  
+\end{align}
+
+**Note:** The asymptotic convergence mentioned earlier is point wise not uniform with respect to $x$.
+
+## Examples
+
+Sample from Normal(0,1) with bandwidth $h_n = n^{(-0.2)}$
+
+We have simulated 1000 values of estimated density using *Gaussian Kernel* taking $x$ as the 60th percentile, standardized them and obtained the following histogram.
+
+```{r, echo = F, include = F}
+library(ggplot2)
+library(gridExtra)
+
+# Define the kernel functions
+gaussian_kernel <- function(u) dnorm(u)
+logistic_kernel <- function(u) dlogis(u)
+naive_kernel <- function(u) ifelse(abs(u) <= 1, 0.5, 0)
+tricube_kernel <- function(u) ifelse(abs(u) <= 1, 35/32 * (1 - abs(u)^3)^3, 0)
+cosine_kernel <- function(u) ifelse(abs(u) <= 1, pi/4 * cos(pi/2 * u), 0)
+epanechnikov_kernel <- function(u) ifelse(abs(u) <= 1, 3/4 * (1 - u^2), 0)
+
+# Set the values for n and calculate h_n for each
+n_values <- c(20, 70, 250, 500)
+
+n<-5000
+h_values <- n_values ^ (-0.3)
+
+
+# Function to simulate and plot for a given kernel
+
+simulate_and_plot <- function(kernel_func, kernel_name, quantile) {
+  
+  
+  p <- list()
+  for (i in (1:length(n_values))) {
+    n <- n_values[i]
+    h <- h_values[i]
+    
+    # Generate random samples
+    
+    
+    # Compute the 0.1 quantile of the sample
+    x_q <- qnorm(quantile, 0, 1)
+    
+    # For each sample, estimate the density at x_q using the kernel function
+    f_n_x <- replicate(1000, {
+      sample_x_i <- rnorm(n,0,1)          # New sample for each replication
+      mean(kernel_func((x_q - sample_x_i) / h)) / h
+    })
+    
+    
+    df<-D(D(expression(1/sqrt(2*pi)*exp(-0.5*x^2)),"x"),"x")
+    mode(df)
+    x<-x_q
+    E_f_n_x <- dnorm(x_q,0,1)+ (0.5 * h^2 * eval(df))
+    kernel_int <- integrate(function(u) kernel_func(u)^2, lower = -Inf, upper = Inf)$value
+    var_f_n_x <- (1 / (n * h)) * dnorm(x_q,0,1) * kernel_int
+    
+    # Standardize f_n(x)
+    standardized_f_n_x <- (f_n_x-E_f_n_x)/sqrt( var_f_n_x)
+    
+    # Create a dataframe for plotting
+    data_to_plot <- data.frame(standardized_f_n_x = standardized_f_n_x)
+    
+    # Plot the histogram with the density of N(0,1) overlaid
+    
+    
+    p[[i]] <- ggplot(data_to_plot, aes(x = standardized_f_n_x)) +
+      geom_histogram(aes(y = ..density..), bins = 30, color = "black", fill = "skyblue") +
+      stat_function(fun = dnorm, args = list(mean = 0, sd = 1), color = "red", size = 1) +
+      labs(title = paste("| n =", n, "| h_n =", round(h, 3)),
+           x = "Standardized f_n(x_q)", y = "Density")
+    
+  }
+  return(p)
+}
+
+
+
+```
+
+```{r, echo = F, cap.height = 5}
+p <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.6), nrow = 2)
+```
+
+## Checking point-wise Convergence
+
+#### Points to be noted
+
+::: incremental
+-   The asymptotic convergence does not hold uniformly but in a point-wise sense.
+-   The rate of convergence may vary with the chosen $x$ where we want to estimate the density.
+-   Usually the cluster of points at the tail-end of the distribution is much less, so estimating density at the tail end points may not yield satisfactory
+:::
+
+## Checking point-wise Convergence {.scrollable}
+
+Samples from N(0,1), with *Gaussian kernel*, taking $h_n = n^{-0.2}$, we have considered the quantiles 0.5, 0.65, 0.8, 0.9
+
+```{r, echo = F, include = F}
+library(ggplot2)
+library(gridExtra)
+# Define the kernel functions
+gaussian_kernel <- function(u) dnorm(u)
+logistic_kernel <- function(u) dlogis(u)
+naive_kernel <- function(u) ifelse(abs(u) <= 1, 0.5, 0)
+tricube_kernel <- function(u) ifelse(abs(u) <= 1, 35/32 * (1 - abs(u)^3)^3, 0)
+cosine_kernel <- function(u) ifelse(abs(u) <= 1, pi/4 * cos(pi/2 * u), 0)
+epanechnikov_kernel <- function(u) ifelse(abs(u) <= 1, 3/4 * (1 - u^2), 0)
+
+# Set the values for n and calculate h_n for each
+n_values <- c(20, 100, 250, 500)
+
+
+h_values <- n_values^(-0.2)
+
+
+# Function to simulate and plot for a given kernel
+
+simulate_and_plot <- function(kernel_func, kernel_name, quantile) {
+  p <- list()
+  for (i in (1:length(n_values))) {
+    n <- n_values[i]
+    h <- h_values[i]
+    
+    # Generate random samples
+  
+    
+    # Compute the 0.1 quantile of the sample
+    x_q <- qnorm(quantile, 0, 1)
+    
+    # For each sample, estimate the density at x_q using the kernel function
+    f_n_x <- replicate(1000, {
+      sample_x_i <- rnorm(n,0,1)          # New sample for each replication
+      mean(kernel_func((x_q - sample_x_i) / h)) / h
+    })
+    
+    
+    df<-D(D(expression(1/sqrt(2*pi)*exp(-0.5*x^2)),"x"),"x")
+    mode(df)
+    x<-x_q
+    E_f_n_x <- dnorm(x_q,0,1)+ (0.5 * h^2 * eval(df))
+    kernel_int <- integrate(function(u) kernel_func(u)^2, lower = -Inf, upper = Inf)$value
+    var_f_n_x <- (1 / (n * h)) * dnorm(x_q,0,1) * kernel_int
+    
+    # Standardize f_n(x)
+    standardized_f_n_x <- (f_n_x-E_f_n_x)/sqrt( var_f_n_x)
+    
+    # Create a dataframe for plotting
+    data_to_plot <- data.frame(standardized_f_n_x = standardized_f_n_x)
+    
+    # Plot the histogram with the density of N(0,1) overlaid
+    
+    
+    p[[i]] <- ggplot(data_to_plot, aes(x = standardized_f_n_x)) +
+      geom_histogram(aes(y = ..density..), bins = 30, color = "black", fill = "skyblue") +
+      stat_function(fun = dnorm, args = list(mean = 0, sd = 1), color = "red", size = 1) +
+      labs(title = paste("Quantile=", 0.5 + (0.9-quantile), "|n =", n),
+           x = "Standardized f_n(x_q)", y = "Density")
+  
+  }
+  return(p)
+}
+
+p1 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.9), nrow =1)
+p2 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.75), nrow = 1)
+p3 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.6), nrow = 1)
+p4 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.5), nrow = 1)
+ 
+```
+
+```{r, echo = F, fig.height=5}
+grid.arrange(grobs = list(p1, p2, p3, p4), ncol = 1)
+```
+
+## Checking point-wise Convergence {.scrollable}
+
+Samples from Exponential(1), with *Epanechnikov kernel*, taking $h_n = n^{-0.2}$, we have considered the quantiles 0.5, 0.65, 0.8, 0.9
+
+```{r, echo = F, include = F}
+n_values <- c(100, 250, 500, 750)
+
+
+h_values <- n_values^(-0.2)
+simulate_and_plot <- function(kernel_func, kernel_name, quantile) {
+  p <- list()
+  for (i in (1:length(n_values))) {
+    n <- n_values[i]
+    h <- h_values[i]
+    
+    # Generate random samples
+  
+    
+    # Compute the 0.1 quantile of the sample
+    x_q <- qexp(quantile)
+    
+    # For each sample, estimate the density at x_q using the kernel function
+    f_n_x <- replicate(1000, {
+      sample_x_i <- rexp(n)          # New sample for each replication
+      mean(kernel_func((x_q - sample_x_i) / h)) / h
+    })
+    
+    
+    df<-D(D(expression(exp(-x)),"x"),"x")
+    mode(df)
+    x<-x_q
+    E_f_n_x <- dexp(x_q)+ (0.5 * h^2 * eval(df))
+    kernel_int <- integrate(function(u) kernel_func(u)^2, lower = -Inf, upper = Inf)$value
+    var_f_n_x <- (1 / (n * h)) * dexp(x_q) * kernel_int
+    
+    # Standardize f_n(x)
+    standardized_f_n_x <- (f_n_x-E_f_n_x)/sqrt( var_f_n_x)
+    
+    # Create a dataframe for plotting
+    data_to_plot <- data.frame(standardized_f_n_x = standardized_f_n_x)
+    
+    # Plot the histogram with the density of N(0,1) overlaid
+    
+    
+    p[[i]] <- ggplot(data_to_plot, aes(x = standardized_f_n_x)) +
+      geom_histogram(aes(y = ..density..), bins = 30, color = "black", fill = "skyblue") +
+      stat_function(fun = dnorm, args = list(mean = 0, sd = 1), color = "red", size = 1) +
+      labs(title = paste("Quantile=", 0.5 + (0.9-quantile), "|n =", n),
+           x = "Standardized f_n(x_q)", y = "Density")
+  
+  }
+  return(p)
+}
+
+p1 <- grid.arrange(grobs = simulate_and_plot(epanechnikov_kernel, "Epanechnikov", 0.9), nrow =1)
+p2 <- grid.arrange(grobs = simulate_and_plot(epanechnikov_kernel, "Epanechnikov", 0.75), nrow = 1)
+p3 <- grid.arrange(grobs = simulate_and_plot(epanechnikov_kernel, "Epanechnikov", 0.6), nrow = 1)
+p4 <- grid.arrange(grobs = simulate_and_plot(epanechnikov_kernel, "Epanechnikov", 0.5), nrow = 1)
+
+```
+
+```{r, echo = F, fig.height=5}
+grid.arrange(grobs = list(p1, p2, p3, p4), ncol = 1)
+```
+
+## Checking point-wise Convergence
+
+#### Observations from the histograms
+
+::: incremental
+-   As $n$ increases the shape of the histograms tend coincide with the density of $N(0,1)$.
+-   However the rate of convergence to Normal is faster for the moderate quantiles.
+-   As we try to estimate the densities at the tail end, we are not getting as fast convergence as in the moderate quantiles.
+-   For Exponential case there is a shift of the histograms to the left even at $n = 750$
+:::
+
+## Inter-play between $n$ and $h_n$
+
+#### Points to be noted
+
+::: incremental
+-   With decrease in $h_n$ the variation in the estimated density increases.
+-   The asymptotic variance of $f_n(x)$ is of order $\frac{1}{nh_n}$, hence $\sqrt{nh_n}$ is the right scaling factor for $(f_n(x) - f(x))$.
+-   For asymptotic results to hold we need $h_n \rightarrow 0$ and $nh_n \rightarrow \infty$
+-   To achieve normality we not only need $n$ to be large but $nh_n$ to be large as well.
+-   So depending on the choice of $n$ we need to choose $h_n$. Hence $h_n$ also plays a role in the asymptotic behaviour of $f_n(x)$.
+:::
+
+## Inter-play between $n$ and $h_n$ {.scrollable}
+
+#### Samples from N(0,1), with *Gaussian kernel*, taking $h_n = n^{-0.1}, n^{-0.2}, n^{-0.3}, n^{-0.4}$
+
+```{r, echo = F, fig.height=5, include=F}
+library(ggplot2)
+library(gridExtra)
+
+# Define the kernel functions
+gaussian_kernel <- function(u) dnorm(u)
+logistic_kernel <- function(u) dlogis(u)
+naive_kernel <- function(u) ifelse(abs(u) <= 1, 0.5, 0)
+tricube_kernel <- function(u) ifelse(abs(u) <= 1, 35/32 * (1 - abs(u)^3)^3, 0)
+cosine_kernel <- function(u) ifelse(abs(u) <= 1, pi/4 * cos(pi/2 * u), 0)
+epanechnikov_kernel <- function(u) ifelse(abs(u) <= 1, 3/4 * (1 - u^2), 0)
+
+# Set the values for n and calculate h_n for each
+n_values <- c(20, 50, 100, 250, 500)
+
+n<-5000
+n_values <- rep(n, 4)
+h_values <- c(n ^ (-0.1), n^(-0.2) , n^(-0.3), n^(-0.4))
+
+
+# Function to simulate and plot for a given kernel
+
+simulate_and_plot <- function(kernel_func, kernel_name, quantile, n) {
+  
+  n_values <- rep(n, 4)
+  h_values <- c(n ^ (-0.1), n^(-0.2) , n^(-0.3), n^(-0.4))
+  p <- list()
+  for (i in (1:length(n_values))) {
+    n <- n_values[i]
+    h <- h_values[i]
+    
+    # Generate random samples
+    
+    
+    # Compute the 0.1 quantile of the sample
+    x_q <- qnorm(quantile, 0, 1)
+    
+    # For each sample, estimate the density at x_q using the kernel function
+    f_n_x <- replicate(1000, {
+      sample_x_i <- rnorm(n,0,1)          # New sample for each replication
+      mean(kernel_func((x_q - sample_x_i) / h)) / h
+    })
+    
+    
+    df<-D(D(expression(1/sqrt(2*pi)*exp(-0.5*x^2)),"x"),"x")
+    mode(df)
+    x<-x_q
+    E_f_n_x <- dnorm(x_q,0,1)+ (0.5 * h^2 * eval(df))
+    kernel_int <- integrate(function(u) kernel_func(u)^2, lower = -Inf, upper = Inf)$value
+    var_f_n_x <- (1 / (n * h)) * dnorm(x_q,0,1) * kernel_int
+    
+    # Standardize f_n(x)
+    standardized_f_n_x <- (f_n_x-E_f_n_x)/sqrt( var_f_n_x)
+    
+    # Create a dataframe for plotting
+    data_to_plot <- data.frame(standardized_f_n_x = standardized_f_n_x)
+    
+    # Plot the histogram with the density of N(0,1) overlaid
+    
+    
+    p[[i]] <- ggplot(data_to_plot, aes(x = standardized_f_n_x)) +
+      geom_histogram(aes(y = ..density..), bins = 30, color = "black", fill = "skyblue") +
+      stat_function(fun = dnorm, args = list(mean = 0, sd = 1), color = "red", size = 1) +
+      labs(title = paste("n =", n, "| log (h_n) =", log(h)/log(n)),
+           x = "Standardized f_n(x_q)", y = "Density")
+    
+  }
+  return(p)
+}
+
+p1 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.5, 20), nrow = 1)
+p2 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.5, 100), nrow = 1)
+p3 <- grid.arrange(grobs = simulate_and_plot(gaussian_kernel, "Gaussian", 0.5, 500), nrow = 1)
+
+
+```
+
+::: incremental
+```{r, echo = F, fig.height=5}
+grid.arrange(grobs = list(p1, p2, p3), ncol = 1)
+```
+:::
+
+## Inter-play between $n$ and $h_n$
+
+#### Observations
+
+::: incremental
+-   For large $n$ asymptotic normality is being attained at relative large order of $h_n$.
+-   For $n = 20$, even $h_n = n ^{-0.4}$ there are some disturbances with the peak of the histograms.
+-   Where as for $n = 500$, with $h_n = n ^ {-0.2}$ we get similar results that we get with $h_n = n ^ {-0.4} for n = 20$
+-   $nh_n$ determines the rate of convergence of $f_n(x) - f(x)$ to asymptotic normality.
+:::
+
+# Least Square Cross Validation
+
+It is a data based method for choosing $h_n$.
+
+Let $f_{n}(x)$ be an estimator of the unknown density $f$. $$f_n(x) = \frac{1}{nh_n} \sum_{i=1}^n k(\frac{x-X_i}{h_n})$$ The Integrated Squared Error is defined as, ISE = $\int_{-\infty}^{\infty}(f_n(x)-f(x))^2 dx$. Minimising ISE w.r.t $h_n$ is equivalent to minimising $M_0(h_n)=\int_{-\infty}^{\infty}(f_n^2(x)dx-\frac{2}{n}\sum_{i=1}^{n}\hat{f}_{-i}(X_i)$ w.r.t $h_n$, where $\hat{f}_{-i}(X_i)= \frac{1}{(n-1)h_n}\sum_{j=1}^{n}k(\frac{x-X_j}{h_n})$ Usage of the optimal $h_n$ obtained by this minimisation, would help us in checking asymptotic normality.
+
+# Any Questions :))
+
